@@ -1,0 +1,220 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CDI IMSS Oaxaca API",
+    "description": "API interna — directorio de trabajadores Delegación Oaxaca",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost/api/v1",
+      "description": "Producción (red interna IMSS)"
+    }
+  ],
+  "security": [
+    { "ApiToken": [] }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Token",
+        "description": "Token estático de acceso a la API"
+      }
+    },
+    "schemas": {
+      "Trabajador": {
+        "type": "object",
+        "properties": {
+          "id":              { "type": "integer" },
+          "matricula":       { "type": "string" },
+          "nombre_completo": { "type": "string" },
+          "correo":          { "type": "string",  "nullable": true },
+          "extension":       { "type": "string",  "nullable": true },
+          "telefono":        { "type": "string",  "nullable": true },
+          "departamento":    { "type": "string",  "nullable": true },
+          "categoria":       { "type": "string",  "nullable": true },
+          "adscripcion":     { "type": "string",  "nullable": true },
+          "delegacion":      { "type": "string",  "nullable": true },
+          "sam_account":     { "type": "string" },
+          "activo":          { "type": "boolean" },
+          "ultima_sync":     { "type": "string",  "format": "date-time" }
+        }
+      },
+      "SyncLog": {
+        "type": "object",
+        "properties": {
+          "id":           { "type": "integer" },
+          "fecha":        { "type": "string", "format": "date-time" },
+          "total":        { "type": "integer" },
+          "nuevos":       { "type": "integer" },
+          "actualizados": { "type": "integer" },
+          "errores":      { "type": "integer" },
+          "duracion_seg": { "type": "number" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "ok":    { "type": "boolean", "example": false },
+          "error": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/trabajador": {
+      "get": {
+        "summary": "Buscar trabajador",
+        "description": "Busca por correo institucional o matrícula. Se requiere uno de los dos parámetros.",
+        "tags": ["Trabajadores"],
+        "parameters": [
+          {
+            "name": "correo",
+            "in": "query",
+            "description": "Correo institucional (ej: juan.perez@imss.gob.mx)",
+            "schema": { "type": "string", "format": "email" }
+          },
+          {
+            "name": "matricula",
+            "in": "query",
+            "description": "Matrícula del trabajador (ej: 99213800)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trabajador encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok":         { "type": "boolean", "example": true },
+                    "trabajador": { "$ref": "#/components/schemas/Trabajador" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Parámetro correo o matricula requerido",
+                   "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Token inválido o ausente",
+                   "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Trabajador no encontrado",
+                   "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/directorio": {
+      "get": {
+        "summary": "Directorio de trabajadores",
+        "description": "Lista paginada de trabajadores activos. Si se envía `desde`, devuelve solo los cambios desde ese timestamp (sync incremental para la app móvil).",
+        "tags": ["Trabajadores"],
+        "parameters": [
+          {
+            "name": "pagina",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "description": "Registros por página (máx. 1000)",
+            "schema": { "type": "integer", "default": 500, "maximum": 1000 }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "description": "Unix timestamp — sync incremental. Devuelve registros modificados desde esa fecha.",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de trabajadores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "trabajadores": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Trabajador" }
+                    },
+                    "total":  { "type": "integer", "example": 3119 },
+                    "pagina": { "type": "integer", "example": 1 },
+                    "limite": { "type": "integer", "example": 500 }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Token inválido o ausente",
+                   "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/sync": {
+      "post": {
+        "summary": "Disparar sync manual",
+        "description": "Sincroniza el directorio LDAP/AD con la base de datos MySQL. Puede tardar varios segundos.",
+        "tags": ["Sync"],
+        "responses": {
+          "200": {
+            "description": "Sync completado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "sync": {
+                      "type": "object",
+                      "properties": {
+                        "total":        { "type": "integer", "example": 3231 },
+                        "nuevos":       { "type": "integer", "example": 3125 },
+                        "actualizados": { "type": "integer", "example": 106 },
+                        "errores":      { "type": "integer", "example": 0 },
+                        "duracion_seg": { "type": "number",  "example": 4.66 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Token inválido o ausente",
+                   "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/sync/status": {
+      "get": {
+        "summary": "Estado del último sync",
+        "description": "Devuelve el log del último sync ejecutado.",
+        "tags": ["Sync"],
+        "responses": {
+          "200": {
+            "description": "Log del último sync",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok":   { "type": "boolean" },
+                    "sync": { "$ref": "#/components/schemas/SyncLog" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Token inválido o ausente",
+                   "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+RewriteEngine On
+RewriteBase /api/
+
+# Docs se sirven como archivos estáticos
+RewriteRule ^docs/ - [L]
+
+# Deja pasar archivos y carpetas reales
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Todo lo demás va a index.php
+RewriteRule ^ index.php [QSA,L]
