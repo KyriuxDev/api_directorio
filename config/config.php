@@ -8,6 +8,14 @@ return [
         'password' => 'admin',
         'charset'  => 'utf8mb4',
     ],
+    'db_imss' => [
+        'host'     => '127.0.0.1',
+        'port'     => '3306',
+        'dbname'   => 'cdi_imss',
+        'user'     => 'root',
+        'password' => 'admin',
+        'charset'  => 'utf8mb4',
+    ],
     'api' => [
         'token' => 'B1n4r10',
     ],

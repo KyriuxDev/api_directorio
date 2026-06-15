@@ -1,27 +1,25 @@
 <?php
 define('ROOT_PATH', __DIR__);
 
-// Carga config y capa compartida
 $config = require ROOT_PATH . '/config/config.php';
 require_once ROOT_PATH . '/shared/Response.php';
 require_once ROOT_PATH . '/shared/Database.php';
 require_once ROOT_PATH . '/middleware/Auth.php';
 
-// Siempre responder JSON
 header('Content-Type: application/json; charset=utf-8');
 
-// Validar token en todas las rutas
 Auth::validate($config['api']['token']);
 
-// Inicializar conexión a BD (singleton)
-Database::getInstance($config['db']);
+// BD principal: cdi_directorio
+Database::getInstance($config['db'], 'default');
 
-// Parsear URI — funciona sin importar dónde viva el proyecto
+// BD secundaria: cdi_imss
+Database::getInstance($config['db_imss'], 'imss');
+
 $uri      = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $segments = array_values(array_filter(explode('/', trim($uri, '/'))));
 $method   = $_SERVER['REQUEST_METHOD'];
 
-// Buscar segmento de versión (v1, v2, etc.)
 $versionIndex = null;
 foreach ($segments as $i => $seg) {
     if (preg_match('/^v\d+$/', $seg)) {
@@ -31,14 +29,13 @@ foreach ($segments as $i => $seg) {
 }
 
 if ($versionIndex === null) {
-    Response::error('Versión de API no válida', 400);
+    Response::error('Version de API no valida', 400);
     exit;
 }
 
 $resource = isset($segments[$versionIndex + 1]) ? $segments[$versionIndex + 1] : '';
 $action   = isset($segments[$versionIndex + 2]) ? $segments[$versionIndex + 2] : '';
 
-// Despachar al router correspondiente
 switch ($resource) {
 
     case 'trabajador':
@@ -50,6 +47,11 @@ switch ($resource) {
     case 'sync':
         require_once ROOT_PATH . '/sync/SyncRouter.php';
         (new SyncRouter($config))->handle($action, $method);
+        break;
+
+    case 'personal':
+        require_once ROOT_PATH . '/personal/PersonalRouter.php';
+        (new PersonalRouter($config))->handle($action, $method);
         break;
 
     default:
