@@ -54,6 +54,11 @@ switch ($resource) {
         (new PersonalRouter($config))->handle($action, $method);
         break;
 
+    case 'usuarios':
+        require_once ROOT_PATH . '/usuarios/UsuarioRouter.php';
+        (new UsuarioRouter($config))->handle($action, $method);
+        break;
+
     default:
         Response::error('Ruta no encontrada', 404);
 }
